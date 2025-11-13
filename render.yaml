@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: yemot-php
+    env: docker
+    plan: free
+    buildCommand: ""
+    startCommand: php -S 0.0.0.0:10000
+    autoDeploy: true
+    envVars:
+      - key: PORT
+        value: 10000
