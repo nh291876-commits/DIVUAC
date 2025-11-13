@@ -2,8 +2,9 @@
 
 // --- תצורה ראשית - יש לערוך ---
 
-// הגדר את הטוקן שלך (מספר מערכת:סיסמה)
-define('YEMOT_TOKEN', '0733181406:80809090'); 
+// [!!!] שונה כדי לקרוא מתוך משתני סביבה של Render
+// עליך להגדיר משתנה סביבה בשם YEMOT_TOKEN ב-Render
+define('YEMOT_TOKEN', getenv('YEMOT_TOKEN') ?: 'YOUR_FALLBACK_TOKEN_HERE'); 
 
 // הגדר את כתובת ה-API למפתחים
 define('YEMOT_API_URL', 'https://www.call2all.co.il/ym/api/');
@@ -21,10 +22,11 @@ define('SOURCE_EXTENSIONS', [
 ]);
 
 // הגדר את שלוחת היעד (רק אחת)
-define('DEST_EXTENSION', '800/54');    // שלוחת יעד (אליה מעתיקים)
+define('DEST_EXTENSION', '800/54');     // שלוחת יעד (אליה מעתיקים)
 
-// קובץ מסד נתונים למיפוי קבצים (דורש אחסון קבוע ב-Render)
-define('DB_FILE', 'file_mappings.json');
+// [!!!] שונה כדי להשתמש באחסון קבוע ב-Render
+// עליך להגדיר "Persistent Disk" עם Mount Path של /data
+define('DB_FILE', '/data/file_mappings.json');
 
 
 // --- [שדרוג 2] ---
@@ -32,6 +34,8 @@ define('DB_FILE', 'file_mappings.json');
 // כאן אתה קובע מה המאזין ישמע ו/או לאן הוא יועבר.
 // אפשר להשתמש ב: "id_list_message=t-הודעה להשמעה" (כדי להשמיע הודעה)
 
+// [!!!] שורה שנוספה לתיקון השגיאה
+define('RESPONSE_ON_COPY_SUCCESS', 'id_list_message=t-הקובץ הועתק בהצלחה');
 
 define('RESPONSE_ON_DELETE_SUCCESS', 'id_list_message=t-הקובץ נמחק בהצלחה');
 
@@ -61,6 +65,10 @@ function load_mappings() {
  * @param array $mappings
  */
 function save_mappings($mappings) {
+    // ודא שהתיקייה קיימת (למקרה שהדיסק חדש)
+    if (!is_dir(dirname(DB_FILE))) {
+        mkdir(dirname(DB_FILE), 0755, true);
+    }
     file_put_contents(DB_FILE, json_encode($mappings, JSON_PRETTY_PRINT));
 }
 
