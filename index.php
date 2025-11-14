@@ -203,7 +203,7 @@ try {
         } else {
             $error = $api_response ? $api_response['message'] : 'Network Error';
             // במקרה של שגיאה, תמיד נשמיע הודעה ולא ננווט
-            $response_message = "id_list_message=t-שגיאה בעת העתקת הקובץ: " . $error;
+            $response_message = "id_list_message=t-השגיאה היא: " . $error;
         }
 
     } 
