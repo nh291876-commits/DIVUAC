@@ -11,7 +11,7 @@
 // --- [אזור תצורה 1: העתקה/מחיקה] ---
 
 // הגדר את הטוקן שלך (מספר מערכת:סיסמה)
-define('YEMOT_TOKEN', '0733181406:80809090'); // ⚠️ החלף בטוקן שלך
+define('YEMOT_TOKEN', 'WU1BUElL.apik_LZWS5zP7zl7foI4qSdkq-A.m10gtqHCv8dSt-1p4c_OKv1zeHDs7NbzA_wjmDucd4U'); // ⚠️ החלף בטוקן שלך
 
 // הגדר את כתובת ה-API למפתחים
 define('YEMOT_API_URL', 'https://www.call2all.co.il/ym/api/');
