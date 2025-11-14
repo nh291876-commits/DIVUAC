@@ -2,36 +2,37 @@
 
 // --- תצורה ראשית - יש לערוך ---
 
-// [!!!] קריטי ל-Render: קורא את הטוקן ממשתני סביבה
-// אנא הגדר YEMOT_TOKEN בממשק של Render
-define('YEMOT_TOKEN', getenv('YEMOT_TOKEN'));
+// הגדר את הטוקן שלך (מספר מערכת:סיסמה)
+define('YEMOT_TOKEN', '0733181406:80809090'); // תוקן: הוסר תו רווח בלתי נראה בסוף השורה
 
 // הגדר את כתובת ה-API למפתחים
 define('YEMOT_API_URL', 'https://www.call2all.co.il/ym/api/');
 
 // --- [שדרוג 1] ---
 // הגדר את שלוחות המקור (יכול להיות אחד או יותר)
+// כל השלוחות ברשימה זו יעתיקו קבצים אל שלוחת היעד
 define('SOURCE_EXTENSIONS', [
     '11',
     '90', // הוסף עוד שלוחות מקור כאן
     '97', // הוסף עוד שלוחות מקור כאן
     '94', // הוסף עוד שלוחות מקור כאן
-    '988', // הוסף עוד שלוחות מקור כאן
+    '988', // הוסף עוד שלוחות מקור כאן  
     '9999'  // לפי הצורך
 ]);
 
 // הגדר את שלוחת היעד (רק אחת)
-define('DEST_EXTENSION', '800/54');
+define('DEST_EXTENSION', '800/54');    // שלוחת יעד (אליה מעתיקים)
 
-// [!!!] קריטי ל-Render: שמירה על דיסק קבוע
-// אנא הגדר Disk ב-Render עם נתיב /data
-define('DB_FILE', '/data/file_mappings.json');
+// קובץ מסד נתונים למיפוי קבצים (דורש אחסון קבוע ב-Render)
+define('DB_FILE', 'file_mappings.json');
 
 
 // --- [שדרוג 2] ---
 // הגדרות ניווט ותגובות לאחר פעולה מוצלחת
+// כאן אתה קובע מה המאזין ישמע ו/או לאן הוא יועבר.
+// אפשר להשתמש ב: "id_list_message=t-הודעה להשמעה" (כדי להשמיע הודעה)
 
-// [!!!] תיקון השגיאה הקודמת (חסר אצלך)
+// הוספה: הגדרה חסרה להעתקה מוצלחת
 define('RESPONSE_ON_COPY_SUCCESS', 'id_list_message=t-הקובץ הועתק בהצלחה');
 
 define('RESPONSE_ON_DELETE_SUCCESS', 'id_list_message=t-הקובץ נמחק בהצלחה');
@@ -62,10 +63,6 @@ function load_mappings() {
  * @param array $mappings
  */
 function save_mappings($mappings) {
-    // ודא שהתיקייה קיימת (למקרה שהדיסק חדש)
-    if (!is_dir(dirname(DB_FILE))) {
-        mkdir(dirname(DB_FILE), 0755, true);
-    }
     file_put_contents(DB_FILE, json_encode($mappings, JSON_PRETTY_PRINT));
 }
 
@@ -198,16 +195,9 @@ try {
             // --- [שונה] ---
             $response_message = RESPONSE_ON_COPY_SUCCESS; // השתמש בהגדרה שקבעת למעלה
         } else {
-            // גרסת דיבאג להקראת השגיאה המדויקת
-            $debug_message = "id_list_message=t-תגובת שגיאה מהשרת: ";
-            if ($api_response) {
-                $response_str = json_encode($api_response);
-                $response_str = str_replace(['{', '}', '"', ':', ',', '_'], ' ', $response_str);
-                $debug_message .= $response_str;
-            } else {
-                $debug_message .= "Network Error";
-            }
-            $response_message = $debug_message;
+            $error = $api_response ? $api_response['message'] : 'Network Error';
+            // במקרה של שגיאה, תמיד נשמיע הודעה ולא ננווט
+            $response_message = "id_list_message=t-שגיאה בעת העתקת הקובץ: " . $error;
         }
 
     } 
@@ -257,8 +247,9 @@ try {
                 $response_message = RESPONSE_ON_DELETE_NO_SOURCE;
             }
         } else {
-             $error_msg = $api_response_dest ? json_encode($api_response_dest) : "Network Error";
-             $response_message = "id_list_message=t-שגיאה במחיקת יעד: " . str_replace(['{', '}', '"', ':', ',', '_'], ' ', $error_msg);
+             $error = $api_response_dest ? $api_response_dest['message'] : 'Network Error';
+             // במקרה של שגיאה, תמיד נשמיע הודעה ולא ננווט
+             $response_message = "id_list_message=t-שגיאה בעת מחיקת קובץ היעד: " . $error;
         }
     }
 
