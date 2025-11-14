@@ -3,60 +3,53 @@
 // --- תצורה ראשית - יש לערוך ---
 
 // הגדר את הטוקן שלך (מספר מערכת:סיסמה)
-define('YEMOT_TOKEN', '0733181406:80809090'); 
+define('YEMOT_TOKEN', '0733181406:80809090'); // תוקן: הוסר תו רווח בלתי נראה בסוף השורה
 
 // הגדר את כתובת ה-API למפתחים
 define('YEMOT_API_URL', 'https://www.call2all.co.il/ym/api/');
 
 // --- [שדרוג 1] ---
-// הגדר את שלוחות המקור
+// הגדר את שלוחות המקור (יכול להיות אחד או יותר)
+// כל השלוחות ברשימה זו יעתיקו קבצים אל שלוחת היעד
 define('SOURCE_EXTENSIONS', [
     '11',
-    '90', 
-    '97', 
-    '94', 
-    '988', 
-    '9999'
+    '90', // הוסף עוד שלוחות מקור כאן
+    '97', // הוסף עוד שלוחות מקור כאן
+    '94', // הוסף עוד שלוחות מקור כאן
+    '988', // הוסף עוד שלוחות מקור כאן  
+    '9999'  // לפי הצורך
 ]);
 
 // הגדר את שלוחת היעד (רק אחת)
-define('DEST_EXTENSION', '800/54');
+define('DEST_EXTENSION', '800/54');    // שלוחת יעד (אליה מעתיקים)
 
-// --- [חובה! הרשאות כתיבה] ---
-// הגדר נתיב *עם הרשאות כתיבה* לקובץ מסד הנתונים
-// בשרת Render, זה *חייב* להיות נתיב לדיסק קשיח (Persistent Disk)
-// לדוגמה: '/var/data/'
-define('DB_WRITE_PATH', './'); // שנה לנתיב הכתיבה שלך ב-Render
+// קובץ מסד נתונים למיפוי קבצים (דורש אחסון קבוע ב-Render)
+define('DB_FILE', 'file_mappings.json');
 
-// --- קבצי לוג ו-DB ---
-define('DB_FILE', DB_WRITE_PATH . 'file_mappings.json');
-define('DEBUG_LOG_FILE', DB_WRITE_PATH . 'script_debug_log.txt');
 
 // --- [שדרוג 2] ---
-// הגדרות ניווט חזרה לימות המשיח (מבוסס על ההגדרות שלך)
-define('API_GOTO_SUCCESS', '/800/55'); // זה ה- api_end_goto שלך
-define('API_GOTO_FAILURE', '/800/ERROR'); // ניצור שלוחת שגיאה ייעודית
+// הגדרות ניווט ותגובות לאחר פעולה מוצלחת
+// כאן אתה קובע מה המאזין ישמע ו/או לאן הוא יועבר.
+// אפשר להשתמש ב: "id_list_message=t-הודעה להשמעה" (כדי להשמיע הודעה)
 
-// --- פונקציית לוגינג חדשה ---
-function debug_log($message) {
-    // הוסף חותמת זמן והודעה ללוג
-    $timestamp = date('Y-m-d H:i:s');
-    file_put_contents(DEBUG_LOG_FILE, "[$timestamp] $message\n", FILE_APPEND);
-}
+// הוספה: הגדרה חסרה להעתקה מוצלחת
+define('RESPONSE_ON_COPY_SUCCESS', 'id_list_message=t-הקובץ הועתק בהצלחה');
 
-// --- ניקוי לוג ישן (אופציונלי) ---
-// אם הלוג גדול מדי, מחק אותו
-if (file_exists(DEBUG_LOG_FILE) && filesize(DEBUG_LOG_FILE) > 5000000) { // 5MB
-    unlink(DEBUG_LOG_FILE);
-}
+define('RESPONSE_ON_DELETE_SUCCESS', 'id_list_message=t-הקובץ נמחק בהצלחה');
 
-// התחלת לוג לבקשה זו
-debug_log("--- New Request Received ---");
-debug_log("Raw Params: " . json_encode($_REQUEST));
+// הגדרות תגובה למקרים פחות נפוצים (אבל תקינים)
+define('RESPONSE_ON_DELETE_PARTIAL_ERROR', 'id_list_message=t-שגיאה במציאת הקובץ המקורי');
+define('RESPONSE_ON_DELETE_NO_SOURCE', 'id_list_message=t-הקובץ בשלוחת המקור לא נמצא');
+
+// --- סוף תצורה ---
 
 
 // --- פונקציות עזר למסד נתונים (JSON) ---
 
+/**
+ * טוען את מיפוי הקבצים מהקובץ
+ * @return array
+ */
 function load_mappings() {
     if (!file_exists(DB_FILE)) {
         return [];
@@ -65,31 +58,59 @@ function load_mappings() {
     return json_decode($data, true) ?: [];
 }
 
+/**
+ * שומר את מיפוי הקבצים לקובץ
+ * @param array $mappings
+ */
 function save_mappings($mappings) {
-    $result = file_put_contents(DB_FILE, json_encode($mappings, JSON_PRETTY_PRINT));
-    if ($result === false) {
-        throw new Exception("Failed to write to DB file: " . DB_FILE);
-    }
+    file_put_contents(DB_FILE, json_encode($mappings, JSON_PRETTY_PRINT));
 }
 
+/**
+ * מוסיף מיפוי חדש (יעד -> מקור)
+ * @param array &$mappings
+ * @param string $dest_path
+ * @param string $source_path
+ */
 function add_mapping(&$mappings, $dest_path, $source_path) {
     $mappings[$dest_path] = $source_path;
 }
 
+/**
+ * מוצא את נתיב המקור לפי נתיב היעד
+ * @param array $mappings
+ * @param string $dest_path
+ * @return string|null
+ */
 function find_source($mappings, $dest_path) {
-    return $mappings[$dest_path] ?? null;
+    return isset($mappings[$dest_path]) ? $mappings[$dest_path] : null;
 }
 
+/**
+ * מסיר מיפוי
+ * @param array &$mappings
+ * @param string $dest_path
+ */
 function remove_mapping(&$mappings, $dest_path) {
     if (isset($mappings[$dest_path])) {
         unset($mappings[$dest_path]);
     }
 }
 
-// --- פונקציית עזר לבדיקת שלוחות מקור ---
+// --- [חדש] פונקציית עזר לבדיקת שלוחות מקור ---
+/**
+ * בודק אם הנתיב שייך לאחת משלוחות המקור המוגדרות
+ * @param string $path
+ * @return bool
+ */
 function is_source_extension($path) {
-    if (!is_array(SOURCE_EXTENSIONS)) return false;
+    // ודא ש-SOURCE_EXTENSIONS מוגדר כמערך
+    if (!is_array(SOURCE_EXTENSIONS)) {
+        return false;
+    }
+    
     foreach (SOURCE_EXTENSIONS as $ext) {
+        // ודא שהערך אינו ריק
         if (!empty($ext) && strpos($path, 'ivr2:/' . $ext . '/') === 0) {
             return true;
         }
@@ -99,10 +120,17 @@ function is_source_extension($path) {
 
 
 // --- פונקציית עזר לביצוע קריאת API למפתחים ---
+
+/**
+ * מבצע קריאת API של ימות המשיח (למפתחים)
+ * @param string $method (לדוגמה 'FileAction')
+ * @param array $params
+ * @return array|null
+ */
 function call_yemot_api($method, $params) {
-    debug_log("Calling Yemot API: $method with params: " . json_encode($params));
-    
     $url = YEMOT_API_URL . $method;
+    
+    // הוסף את הטוקן לפרמטרים
     $params['token'] = YEMOT_TOKEN;
     
     $options = [
@@ -117,33 +145,40 @@ function call_yemot_api($method, $params) {
     $result = file_get_contents($url, false, $context);
     
     if ($result === FALSE) {
-        debug_log("Yemot API Call Failed (Network Error)");
         return null; // שגיאת רשת
     }
     
-    debug_log("Yemot API Raw Response: " . $result);
     return json_decode($result, true);
 }
 
 
 // --- לוגיקה ראשית - עיבוד הבקשה ---
 
-$response_command = "go_to_folder=" . API_GOTO_FAILURE; // ברירת מחדל תיכשל
+// קבל את כל הפרמטרים שנשלחו מהשלוחה
+$params = $_REQUEST;
+
+// ודא שהפרמטר 'what' (נתיב הקובץ) קיים
+if (!isset($params['what'])) {
+    // אם אין נתיב קובץ, החזר הודעת שגיאה
+    echo "id_list_message=t-שגיאה, לא התקבל נתיב קובץ";
+    exit;
+}
+
+$current_file_path = $params['what']; // ivr2:/11/001.wav או ivr2:/14/001.wav
+$file_name = basename($current_file_path); // 001.wav
+
+$response_message = "id_list_message=t-פעולה לא זוהתה"; // הודעת ברירת מחדל
 
 try {
-    if (!isset($_REQUEST['what'])) {
-        throw new Exception("No 'what' parameter received.");
-    }
-
-    $current_file_path = $_REQUEST['what']; 
-    $file_name = basename($current_file_path); 
-
+    // --- [שונה] ---
+    // בדוק אם זו בקשת העתקה (מכל אחת משלוחות המקור)
     if (is_source_extension($current_file_path)) {
         // --- לוגיקת העתקה ---
-        debug_log("Action: Copy");
+        
         $source_path = $current_file_path;
         $dest_path = 'ivr2:/' . DEST_EXTENSION . '/' . $file_name;
 
+        // 1. בצע העתקה דרך ה-API למפתחים
         $api_params = [
             'action' => 'copy',
             'what'   => $source_path,
@@ -152,103 +187,77 @@ try {
         $api_response = call_yemot_api('FileAction', $api_params);
 
         if ($api_response && $api_response['responseStatus'] == 'OK') {
-            debug_log("Copy OK. Saving to DB.");
+            // 2. אם ההעתקה הצליחה, שמור ב-DB
             $mappings = load_mappings();
             add_mapping($mappings, $dest_path, $source_path);
             save_mappings($mappings);
             
-            $response_command = "go_to_folder=" . API_GOTO_SUCCESS;
+            // --- [שונה] ---
+            $response_message = RESPONSE_ON_COPY_SUCCESS; // השתמש בהגדרה שקבעת למעלה
         } else {
-            throw new Exception("Copy API call failed. Response: " . json_encode($api_response));
+            $error = $api_response ? $api_response['message'] : 'Network Error';
+            // במקרה של שגיאה, תמיד נשמיע הודעה ולא ננווט
+            $response_message = "id_list_message=t-שגיאה בעת העתקת הקובץ: " . $error;
         }
 
     } 
+    // בדוק אם זו בקשת מחיקה (משלוחת היעד)
     elseif (strpos($current_file_path, 'ivr2:/' . DEST_EXTENSION . '/') === 0) {
         // --- לוגיקת מחיקה כפולה ---
-        debug_log("Action: Delete");
+        
         $dest_path = $current_file_path;
+        
+        // 1. טען את ה-DB ומצא את קובץ המקור
         $mappings = load_mappings();
         $source_path = find_source($mappings, $dest_path);
 
-        $api_params_dest = ['action' => 'delete', 'what' => $dest_path];
+        // 2. מחק את קובץ היעד
+        $api_params_dest = [
+            'action' => 'delete',
+            'what'   => $dest_path
+        ];
         $api_response_dest = call_yemot_api('FileAction', $api_params_dest);
         
-        if (!$api_response_dest || $api_response_dest['responseStatus'] != 'OK') {
-             throw new Exception("Delete (Destination) API call failed. Response: " . json_encode($api_response_dest));
-        }
-        
-        debug_log("Delete (Destination) OK.");
         $deleted_source = false;
+        
+        // 3. אם המקור נמצא, מחק גם אותו
         if ($source_path) {
-            debug_log("Found source file to delete: $source_path");
-            $api_params_source = ['action' => 'delete', 'what' => $source_path];
+            $api_params_source = [
+                'action' => 'delete',
+                'what'   => $source_path
+            ];
             $api_response_source = call_yemot_api('FileAction', $api_params_source);
             if ($api_response_source && $api_response_source['responseStatus'] == 'OK') {
-                debug_log("Delete (Source) OK.");
                 $deleted_source = true;
-            } else {
-                 debug_log("WARNING: Delete (Source) FAILED. Response: " . json_encode($api_response_source));
             }
-        } else {
-             debug_log("WARNING: No source file found in DB for $dest_path");
         }
 
-        remove_mapping($mappings, $dest_path);
-        save_mappings($mappings);
-        debug_log("DB mapping removed.");
-        
-        $response_command = "go_to_folder=" . API_GOTO_SUCCESS;
-
-    } else {
-         debug_log("Action: None. Path did not match source or destination.");
-         // ישמור על ברירת המחדל של כישלון
+        // 4. עדכן DB והחזר תשובה
+        if ($api_response_dest && $api_response_dest['responseStatus'] == 'OK') {
+            remove_mapping($mappings, $dest_path); // הסר מהמיפוי
+            save_mappings($mappings);
+            
+            // --- [שונה] ---
+            // בחר את התגובה המתאימה לפי ההגדרות שקבעת למעלה
+            if ($deleted_source) {
+                $response_message = RESPONSE_ON_DELETE_SUCCESS;
+            } else if ($source_path) {
+                $response_message = RESPONSE_ON_DELETE_PARTIAL_ERROR;
+            } else {
+                $response_message = RESPONSE_ON_DELETE_NO_SOURCE;
+            }
+        } else {
+             $error = $api_response_dest ? $api_response_dest['message'] : 'Network Error';
+             // במקרה של שגיאה, תמיד נשמיע הודעה ולא ננווט
+             $response_message = "id_list_message=t-שגיאה בעת מחיקת קובץ היעד: " . $error;
+        }
     }
 
 } catch (Exception $e) {
-    debug_log("--- CRITICAL ERROR ---");
-    debug_log("Exception: " . $e->getMessage());
-    $response_command = "go_to_folder=" . API_GOTO_FAILURE;
+    $response_message = "id_list_message=t-שגיאת שרת קריטית: " . $e->getMessage();
 }
 
 // החזר תשובה למערכת הטלפונית
-debug_log("Final response to Yemot: $response_command");
-echo $response_command;
+echo $response_message;
 
 ?>
-```eof
-
-### הוראות הפעלה (חובה!)
-
-כעת עליך לבצע 4 פעולות קריטיות כדי שזה יעבוד:
-
-1.  **החלף את הקוד:** החלף את כל הקוד ב-`index.php` שלך בקוד שסיפקתי למעלה.
-
-2.  **צור שלוחות בימות המשיח:**
-    * ודא שהשלוחה `/800/55` קיימת (זו השלוחה שציינת ב-`api_end_goto`, אז אני מניח שהיא קיימת).
-    * **צור שלוחה חדשה:** ` /800/ERROR` (אפשר שתהיה שלוחה ריקה או שלוחת השמעת קבצים עם הודעת "אירעה שגיאה").
-
-3.  **תקן הרשאות כתיבה ב-Render (הכי חשוב):**
-    * הסקריפט עכשיו צריך לכתוב שני קבצים: `file_mappings.json` ו-`script_debug_log.txt`.
-    * אתה **חייב** להגדיר "Persistent Disk" ב-Render ולקבל נתיב תיקייה עם הרשאות כתיבה.
-    * שנה את שורה 28 בקוד:
-        ```php
-        // שנה את זה:
-        define('DB_WRITE_PATH', './'); 
-        
-        // לנתיב שקיבלת מ-Render, לדוגמה:
-        define('DB_WRITE_PATH', '/var/data/'); 
-        ```
-    * **אם לא תעשה זאת, הסקריפט יכשל מיידית.**
-
-4.  **בצע את הניסוי ודווח:**
-    * התקשר למערכת, גש לשלוחה `11` (או שלוחת מקור אחרת), והקש `*` ואז `5` כדי לנסות להעתיק.
-    * **מה קרה?**
-        * **אם הועברת לשלוחה `/800/55`:** הצלחה! הקובץ הועתק.
-        * **אם הועברת לשלוחה `/800/ERROR`:** כישלון.
-    * **אם זה נכשל (הגעת ל-ERROR):**
-        1.  גש לשרת שלך ב-Render.
-        2.  פתח את התיקייה שהגדרת ב-`DB_WRITE_PATH`.
-        3.  מצא את הקובץ `script_debug_log.txt`.
-        4.  **שלח לי את כל התוכן של הקובץ הזה.**
-
-הלוג הזה יגיד לנו *בדיוק* מהי השגיאה שימות המשיח מחזיר (למשל: "Token invalid", "Target path not found" וכו').
