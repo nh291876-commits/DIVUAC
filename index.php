@@ -21,7 +21,7 @@ define('SOURCE_EXTENSIONS', [
 ]);
 
 // הגדר את שלוחת היעד (רק אחת)
-define('DEST_EXTENSION', '800/54');    // שלוחת יעד (אליה מעתיקים)
+define('DEST_EXTENSION', '8000');    // שלוחת יעד (אליה מעתיקים)
 
 // קובץ מסד נתונים למיפוי קבצים (דורש אחסון קבוע ב-Render)
 define('DB_FILE', 'file_mappings.json');
