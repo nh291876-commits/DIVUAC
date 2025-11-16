@@ -3,134 +3,86 @@
 // --- תצורה ראשית - יש לערוך ---
 
 // הגדר את הטוקן שלך (מספר מערכת:סיסמה)
-define('YEMOT_TOKEN', '0733181406:80809090'); // תוקן: הוסר תו רווח בלתי נראה בסוף השורה
+define('YEMOT_TOKEN', 'מספר_מערכת:סיסמה'); 
 
 // הגדר את כתובת ה-API למפתחים
 define('YEMOT_API_URL', 'https://www.call2all.co.il/ym/api/');
 
-// --- [שדרוג 1] ---
-// הגדר את שלוחות המקור (יכול להיות אחד או יותר)
-// כל השלוחות ברשימה זו יעתיקו קבצים אל שלוחת היעד
+// --- [חדש] הגדרות שלוחות ---
+
+// הגדר את שלוחות המקור (מהן מעתיקים/מזיזים)
 define('SOURCE_EXTENSIONS', [
     '11',
-    '90', // הוסף עוד שלוחות מקור כאן
-    '97', // הוסף עוד שלוחות מקור כאן
-    '94', // הוסף עוד שלוחות מקור כאן
-    '988', // הוסף עוד שלוחות מקור כאן  
-    '9999'  // לפי הצורך
+    '90',
+    '97',
+    '94',
+    '988',
+    '9999'
 ]);
 
-// הגדר את שלוחת היעד (רק אחת)
-define('DEST_EXTENSION', '8000');    // שלוחת יעד (אליה מעתיקים)
+// שלוחת יעד לדיווחים רגילים (כמו קודם)
+define('DEST_REGULAR', '8000');
 
-// קובץ מסד נתונים למיפוי קבצים (דורש אחסון קבוע ב-Render)
+// שלוחת יעד לדיווחים חמורים (לטיפול מנהל)
+define('DEST_URGENT_A', '88');
+
+// שלוחת יעד לדיווחים חמורים (לתיעוד)
+define('DEST_URGENT_B', '85');
+
+
+// קובץ מסד נתונים למיפוי קבצים (JSON)
 define('DB_FILE', 'file_mappings.json');
 
 
-// --- [שדרוג 2] ---
-// הגדרות ניווט ותגובות לאחר פעולה מוצלחת
-// כאן אתה קובע מה המאזין ישמע ו/או לאן הוא יועבר.
-// אפשר להשתמש ב: "id_list_message=t-הודעה להשמעה" (כדי להשמיע הודעה)
+// --- [חדש] הגדרות תגובה למאזין (לכל הפעולות) ---
 
-// הוספה: הגדרה חסרה להעתקה מוצלחת
-define('RESPONSE_ON_COPY_SUCCESS', 'id_list_message=t-הקובץ הועתק בהצלחה');
+// דיווחים
+define('RESPONSE_ON_REGULAR_COPY_SUCCESS', 'id_list_message=t-הדיווח הרגיל התקבל, הקובץ הועתק');
+define('RESPONSE_ON_URGENT_MOVE_SUCCESS', 'id_list_message=t-דיווח חמור התקבל, הקובץ הועבר באופן מיידי');
 
-define('RESPONSE_ON_DELETE_SUCCESS', 'id_list_message=t-הקובץ נמחק בהצלחה');
+// פעולות מנהל
+define('RESPONSE_ON_DELETE_SUCCESS', 'id_list_message=t-הקובץ נמחק בהצלחה מהארכיון ומהמקור');
+define('RESPONSE_ON_RESTORE_SUCCESS', 'id_list_message=t-הקובץ שוחזר בהצלחה לשלוחה המקורית');
 
-// הגדרות תגובה למקרים פחות נפוצים (אבל תקינים)
-define('RESPONSE_ON_DELETE_PARTIAL_ERROR', 'id_list_message=t-שגיאה במציאת הקובץ המקורי');
-define('RESPONSE_ON_DELETE_NO_SOURCE', 'id_list_message=t-הקובץ בשלוחת המקור לא נמצא');
+// שגיאות
+define('RESPONSE_ON_DELETE_PARTIAL_ERROR', 'id_list_message=t-הקובץ נמחק מהארכיון אך המקור לא נמצא');
+define('RESPONSE_ON_DELETE_NO_SOURCE', 'id_list_message=t-הקובץ נמחק מהארכיון (לא נמצא קישור למקור)');
+define('RESPONSE_ON_RESTORE_NO_SOURCE', 'id_list_message=t-שגיאת שחזור, לא נמצא נתיב מקור ביומן');
+define('RESPONSE_ON_ERROR', 'id_list_message=t-אירעה שגיאה בביצוע הפעולה');
+define('RESPONSE_ON_PARAM_ERROR', 'id_list_message=t-שגיאה: חסרים פרמטרים');
+define('RESPONSE_ON_UNKNOWN_ACTION', 'id_list_message=t-פעולה לא מוכרת');
 
 // --- סוף תצורה ---
 
 
 // --- פונקציות עזר למסד נתונים (JSON) ---
 
-/**
- * טוען את מיפוי הקבצים מהקובץ
- * @return array
- */
 function load_mappings() {
-    if (!file_exists(DB_FILE)) {
-        return [];
-    }
+    if (!file_exists(DB_FILE)) return [];
     $data = file_get_contents(DB_FILE);
     return json_decode($data, true) ?: [];
 }
 
-/**
- * שומר את מיפוי הקבצים לקובץ
- * @param array $mappings
- */
 function save_mappings($mappings) {
     file_put_contents(DB_FILE, json_encode($mappings, JSON_PRETTY_PRINT));
 }
 
-/**
- * מוסיף מיפוי חדש (יעד -> מקור)
- * @param array &$mappings
- * @param string $dest_path
- * @param string $source_path
- */
 function add_mapping(&$mappings, $dest_path, $source_path) {
     $mappings[$dest_path] = $source_path;
 }
 
-/**
- * מוצא את נתיב המקור לפי נתיב היעד
- * @param array $mappings
- * @param string $dest_path
- * @return string|null
- */
 function find_source($mappings, $dest_path) {
     return isset($mappings[$dest_path]) ? $mappings[$dest_path] : null;
 }
 
-/**
- * מסיר מיפוי
- * @param array &$mappings
- * @param string $dest_path
- */
 function remove_mapping(&$mappings, $dest_path) {
-    if (isset($mappings[$dest_path])) {
-        unset($mappings[$dest_path]);
-    }
+    if (isset($mappings[$dest_path])) unset($mappings[$dest_path]);
 }
-
-// --- [חדש] פונקציית עזר לבדיקת שלוחות מקור ---
-/**
- * בודק אם הנתיב שייך לאחת משלוחות המקור המוגדרות
- * @param string $path
- * @return bool
- */
-function is_source_extension($path) {
-    // ודא ש-SOURCE_EXTENSIONS מוגדר כמערך
-    if (!is_array(SOURCE_EXTENSIONS)) {
-        return false;
-    }
-    
-    foreach (SOURCE_EXTENSIONS as $ext) {
-        // ודא שהערך אינו ריק
-        if (!empty($ext) && strpos($path, 'ivr2:/' . $ext . '/') === 0) {
-            return true;
-        }
-    }
-    return false;
-}
-
 
 // --- פונקציית עזר לביצוע קריאת API למפתחים ---
 
-/**
- * מבצע קריאת API של ימות המשיח (למפתחים)
- * @param string $method (לדוגמה 'FileAction')
- * @param array $params
- * @return array|null
- */
 function call_yemot_api($method, $params) {
     $url = YEMOT_API_URL . $method;
-    
-    // הוסף את הטוקן לפרמטרים
     $params['token'] = YEMOT_TOKEN;
     
     $options = [
@@ -144,120 +96,169 @@ function call_yemot_api($method, $params) {
     $context  = stream_context_create($options);
     $result = file_get_contents($url, false, $context);
     
-    if ($result === FALSE) {
-        return null; // שגיאת רשת
-    }
-    
+    if ($result === FALSE) return null;
     return json_decode($result, true);
 }
 
 
-// --- לוגיקה ראשית - עיבוד הבקשה ---
+// --- לוגיקה ראשית ---
 
-// קבל את כל הפרמטרים שנשלחו מהשלוחה
+header('Content-Type: text/html; charset=utf-8');
+
 $params = $_REQUEST;
+$response_message = RESPONSE_ON_ERROR; // ברירת מחדל לשגיאה
 
-// ודא שהפרמטר 'what' (נתיב הקובץ) קיים
-if (!isset($params['what'])) {
-    // אם אין נתיב קובץ, החזר הודעת שגיאה
-    echo "id_list_message=t-שגיאה, לא התקבל נתיב קובץ";
+// קבלת פרמטרים מרכזיים
+$what = $params['what'] ?? null; // נתיב הקובץ (נשלח תמיד)
+$action = $params['action'] ?? null; // הפעולה לביצוע (אנחנו מגדירים ב-ext.ini)
+$report_type = $params['report_type'] ?? null; // יתקבל (1 או 2) אחרי ה-read
+
+// בדיקה בסיסית
+if (!$what || !$action) {
+    echo RESPONSE_ON_PARAM_ERROR;
     exit;
 }
 
-$current_file_path = $params['what']; // ivr2:/11/001.wav או ivr2:/14/001.wav
-$file_name = basename($current_file_path); // 001.wav
-
-$response_message = "id_list_message=t-פעולה לא זוהתה"; // הודעת ברירת מחדל
-
 try {
-    // --- [שונה] ---
-    // בדוק אם זו בקשת העתקה (מכל אחת משלוחות המקור)
-    if (is_source_extension($current_file_path)) {
-        // --- לוגיקת העתקה ---
-        
-        $source_path = $current_file_path;
-        $dest_path = 'ivr2:/' . DEST_EXTENSION . '/' . $file_name;
+    // --- [חדש] נתב פעולות מרכזי ---
+    switch ($action) {
 
-        // 1. בצע העתקה דרך ה-API למפתחים
-        $api_params = [
-            'action' => 'copy',
-            'what'   => $source_path,
-            'target' => $dest_path
-        ];
-        $api_response = call_yemot_api('FileAction', $api_params);
-
-        if ($api_response && $api_response['responseStatus'] == 'OK') {
-            // 2. אם ההעתקה הצליחה, שמור ב-DB
-            $mappings = load_mappings();
-            add_mapping($mappings, $dest_path, $source_path);
-            save_mappings($mappings);
+        // --- תרחיש 1: מאזין מדווח (משלוחת מקור) ---
+        case 'ask_report_type':
+            // זוהי הלוגיקה הדו-שלבית שדיברנו עליה
+            if (empty($report_type)) {
+                // שלב 1: המאזין לחץ 7. ה-API עוד לא שאל אותו כלום.
+                // נגיד לימות המשיח לשאול אותו עכשיו.
+                $response_message = "read=t-אם זה דיווח חמור הקש 1 ואם דיווח רגיל הקש 2,report_type,no,1,1,Digits,yes,yes,*/,1.2";
             
-            // --- [שונה] ---
-            $response_message = RESPONSE_ON_COPY_SUCCESS; // השתמש בהגדרה שקבעת למעלה
-        } else {
-            $error = $api_response ? $api_response['message'] : 'Network Error';
-            // במקרה של שגיאה, תמיד נשמיע הודעה ולא ננווט
-            $response_message = "id_list_message=t-שגיאה בעת העתקת הקובץ: " . $error;
-        }
-
-    } 
-    // בדוק אם זו בקשת מחיקה (משלוחת היעד)
-    elseif (strpos($current_file_path, 'ivr2:/' . DEST_EXTENSION . '/') === 0) {
-        // --- לוגיקת מחיקה כפולה ---
-        
-        $dest_path = $current_file_path;
-        
-        // 1. טען את ה-DB ומצא את קובץ המקור
-        $mappings = load_mappings();
-        $source_path = find_source($mappings, $dest_path);
-
-        // 2. מחק את קובץ היעד
-        $api_params_dest = [
-            'action' => 'delete',
-            'what'   => $dest_path
-        ];
-        $api_response_dest = call_yemot_api('FileAction', $api_params_dest);
-        
-        $deleted_source = false;
-        
-        // 3. אם המקור נמצא, מחק גם אותו
-        if ($source_path) {
-            $api_params_source = [
-                'action' => 'delete',
-                'what'   => $source_path
-            ];
-            $api_response_source = call_yemot_api('FileAction', $api_params_source);
-            if ($api_response_source && $api_response_source['responseStatus'] == 'OK') {
-                $deleted_source = true;
-            }
-        }
-
-        // 4. עדכן DB והחזר תשובה
-        if ($api_response_dest && $api_response_dest['responseStatus'] == 'OK') {
-            remove_mapping($mappings, $dest_path); // הסר מהמיפוי
-            save_mappings($mappings);
-            
-            // --- [שונה] ---
-            // בחר את התגובה המתאימה לפי ההגדרות שקבעת למעלה
-            if ($deleted_source) {
-                $response_message = RESPONSE_ON_DELETE_SUCCESS;
-            } else if ($source_path) {
-                $response_message = RESPONSE_ON_DELETE_PARTIAL_ERROR;
             } else {
-                $response_message = RESPONSE_ON_DELETE_NO_SOURCE;
+                // שלב 2: המאזין ענה 1 או 2. הנתון חזר אלינו יחד עם 'what'.
+                // עכשיו נבצע את הפעולה לפי הבחירה.
+                $file_name = basename($what);
+                $source_path = $what;
+
+                if ($report_type == '2') {
+                    // --- דיווח רגיל (כמו הלוגיקה הישנה) ---
+                    $dest_path = 'ivr2:/' . DEST_REGULAR . '/' . $file_name;
+                    $api_params = ['action' => 'copy', 'what' => $source_path, 'target' => $dest_path];
+                    $api_response = call_yemot_api('FileAction', $api_params);
+
+                    if ($api_response && $api_response['responseStatus'] == 'OK') {
+                        $mappings = load_mappings();
+                        add_mapping($mappings, $dest_path, $source_path);
+                        save_mappings($mappings);
+                        $response_message = RESPONSE_ON_REGULAR_COPY_SUCCESS;
+                    } else {
+                        $response_message = "id_list_message=t-שגיאה בהעתקה רגילה";
+                    }
+
+                } elseif ($report_type == '1') {
+                    // --- דיווח חמור (לוגיקה חדשה: העברה + העתקה) ---
+                    $dest_path_a = 'ivr2:/' . DEST_URGENT_A . '/' . $file_name; // 88
+                    $dest_path_b = 'ivr2:/' . DEST_URGENT_B . '/' . $file_name; // 85 (תיעוד)
+
+                    // 1. העברה לשלוחה 88 (Move = Copy + Delete)
+                    $api_params_move_copy = ['action' => 'copy', 'what' => $source_path, 'target' => $dest_path_a];
+                    $api_response_move_copy = call_yemot_api('FileAction', $api_params_move_copy);
+
+                    if ($api_response_move_copy && $api_response_move_copy['responseStatus'] == 'OK') {
+                        // רק אם ההעתקה ל-88 הצליחה, נמחק את המקור
+                        $api_params_move_delete = ['action' => 'delete', 'what' => $source_path];
+                        call_yemot_api('FileAction', $api_params_move_delete); // נמשיך גם אם המחיקה נכשלת
+
+                        // 2. העתקה לתיעוד (שלוחה 85)
+                        $api_params_log = ['action' => 'copy', 'what' => $source_path, 'target' => $dest_path_b];
+                        call_yemot_api('FileAction', $api_params_log); // זה רק לתיעוד, נמשיך גם אם נכשל
+
+                        // 3. שמירת מיפוי (הכי חשוב זה המיפוי ל-88 לצורך שחזור)
+                        $mappings = load_mappings();
+                        add_mapping($mappings, $dest_path_a, $source_path); // מפתח: 88, ערך: המקור
+                        save_mappings($mappings);
+                        $response_message = RESPONSE_ON_URGENT_MOVE_SUCCESS;
+                        
+                    } else {
+                         $response_message = "id_list_message=t-שגיאה בהעברה דחופה";
+                    }
+                }
             }
-        } else {
-             $error = $api_response_dest ? $api_response_dest['message'] : 'Network Error';
-             // במקרה של שגיאה, תמיד נשמיע הודעה ולא ננווט
-             $response_message = "id_list_message=t-שגיאה בעת מחיקת קובץ היעד: " . $error;
-        }
+            break;
+
+        // --- תרחיש 2: מנהל מוחק דיווח רגיל (משלוחה 8000) ---
+        case 'delete_regular':
+            $dest_path = $what; // $what הוא ivr2:/8000/file.wav
+            $mappings = load_mappings();
+            $source_path = find_source($mappings, $dest_path);
+
+            // 1. מחיקת קובץ היעד (8000)
+            $api_params_dest = ['action' => 'delete', 'what' => $dest_path];
+            $api_response_dest = call_yemot_api('FileAction', $api_params_dest);
+            
+            if ($api_response_dest && $api_response_dest['responseStatus'] == 'OK') {
+                $deleted_source = false;
+                // 2. מחיקת קובץ המקור (אם קיים במיפוי)
+                if ($source_path) {
+                    $api_params_source = ['action' => 'delete', 'what' => $source_path];
+                    $api_response_source = call_yemot_api('FileAction', $api_params_source);
+                    if ($api_response_source && $api_response_source['responseStatus'] == 'OK') {
+                        $deleted_source = true;
+                    }
+                }
+
+                // עדכון המיפוי
+                remove_mapping($mappings, $dest_path);
+                save_mappings($mappings);
+                
+                // קביעת הודעת התגובה
+                if ($deleted_source) $response_message = RESPONSE_ON_DELETE_SUCCESS;
+                elseif ($source_path) $response_message = RESPONSE_ON_DELETE_PARTIAL_ERROR;
+                else $response_message = RESPONSE_ON_DELETE_NO_SOURCE;
+
+            } else {
+                 $response_message = "id_list_message=t-שגיאה במחיקת קובץ היעד";
+            }
+            break;
+
+        // --- תרחיש 3: מנהל משחזר דיווח חמור (משלוחה 88) ---
+        case 'restore_urgent':
+            $dest_path_a = $what; // $what הוא ivr2:/88/file.wav
+            $mappings = load_mappings();
+            $source_path = find_source($mappings, $dest_path_a); // מחפש את המקור לפי 88
+
+            if (!$source_path) {
+                $response_message = RESPONSE_ON_RESTORE_NO_SOURCE;
+                break; // יוצא מה-switch
+            }
+
+            // לוגיקת שחזור: העבר (Move) את הקובץ מ-88 בחזרה למקור
+            // Move = Copy + Delete
+            $api_params_restore_copy = ['action' => 'copy', 'what' => $dest_path_a, 'target' => $source_path];
+            $api_response_restore_copy = call_yemot_api('FileAction', $api_params_restore_copy);
+
+            if ($api_response_restore_copy && $api_response_restore_copy['responseStatus'] == 'OK') {
+                // רק אם השחזור (העתקה) הצליח, נמחק את הקובץ מ-88
+                $api_params_restore_delete = ['action' => 'delete', 'what' => $dest_path_a];
+                call_yemot_api('FileAction', $api_params_restore_delete);
+
+                // הסר את המיפוי מה-JSON
+                remove_mapping($mappings, $dest_path_a);
+                save_mappings($mappings);
+                
+                $response_message = RESPONSE_ON_RESTORE_SUCCESS;
+            } else {
+                $response_message = "id_list_message=t-שגיאה בשחזור הקובץ";
+            }
+            break;
+
+        default:
+            $response_message = RESPONSE_ON_UNKNOWN_ACTION;
+            break;
     }
 
 } catch (Exception $e) {
-    $response_message = "id_list_message=t-שגיאת שרת קריטית: " . $e->getMessage();
+    $response_message = "id_list_message=t-שגיאת שרת: " . $e->getMessage();
 }
 
-// החזר תשובה למערכת הטלפונית
+// החזר תשובה סופית לימות המשיח
 echo $response_message;
 
 ?>
