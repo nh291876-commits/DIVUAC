@@ -1,90 +1,116 @@
 <?php
-// --- [חדש] טעינת ספריות חיצוניות (Composer) ---
-// ודא שקובץ זה נמצא בתיקייה הראשית של הפרויקט שלך
-require 'vendor/autoload.php';
-
-// שימוש בספריות של גוגל
-use Google\Cloud\Speech\V1\SpeechClient;
-use Google\Cloud\Speech\V1\RecognitionConfig;
-use Google\Cloud\Speech\V1\RecognitionAudio;
-use Google\Cloud\Speech\V1\RecognitionConfig\AudioEncoding;
-use Google\ApiCore\ApiException;
-
-// הגדרת דיווח שגיאות
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
 
 // --- תצורה ראשית - יש לערוך ---
 
-define('YEMOT_TOKEN', '0733181406:80809090');
+// הגדר את הטוקן שלך (מספר מערכת:סיסמה)
+define('YEMOT_TOKEN', '0733181406:80809090'); // תוקן: הוסר תו רווח בלתי נראה בסוף השורה
+
+// הגדר את כתובת ה-API למפתחים
 define('YEMOT_API_URL', 'https://www.call2all.co.il/ym/api/');
 
-// --- [שדרוג 1] - שלוחות מקור ויעד ---
+// --- [שדרוג 1] ---
+// הגדר את שלוחות המקור (יכול להיות אחד או יותר)
+// כל השלוחות ברשימה זו יעתיקו קבצים אל שלוחת היעד
 define('SOURCE_EXTENSIONS', [
-    '11', '90', '97', '94', '988', '9999'
+    '11',
+    '90', // הוסף עוד שלוחות מקור כאן
+    '97', // הוסף עוד שלוחות מקור כאן
+    '94', // הוסף עוד שלוחות מקור כאן
+    '988', // הוסף עוד שלוחות מקור כאן  
+    '9999'  // לפי הצורך
 ]);
 
-// [שונה] שלוחת יעד לבדיקה ידנית (מסופקים / תקינים)
-define('DEST_EXTENSION_MANUAL', '8000');
-// [חדש] שלוחת יעד לבידוד (קבצים בעייתיים שזוהו ע"י AI)
-define('DEST_EXTENSION_QUARANTINE', '922');
+// הגדר את שלוחת היעד (רק אחת)
+define('DEST_EXTENSION', '8000');    // שלוחת יעד (אליה מעתיקים)
 
-// קובץ מסד נתונים למיפוי קבצים (רק עבור שלוחה 8000)
+// קובץ מסד נתונים למיפוי קבצים (דורש אחסון קבוע ב-Render)
 define('DB_FILE', 'file_mappings.json');
-define('TEMP_DIR', sys_get_temp_dir()); // תיקייה זמנית של השרת
 
-// --- [שדרוג 2] - הגדרות AI ו-API ---
 
-// [חדש] נתיב לקובץ ה-JSON של חשבון השירות של Google Cloud (עבור תמלול)
-define('GOOGLE_STT_CREDENTIALS', __DIR__ . '/YOUR_GOOGLE_STT_CREDENTIALS_FILE.json');
+// --- [שדרוג 2] ---
+// הגדרות ניווט ותגובות לאחר פעולה מוצלחת
+// כאן אתה קובע מה המאזין ישמע ו/או לאן הוא יועבר.
+// אפשר להשתמש ב: "id_list_message=t-הודעה להשמעה" (כדי להשמיע הודעה)
 
-// [חדש] מפתח API של Google AI Studio (עבור Gemini)
-define('GOOGLE_STT_CREDENTIALS', __DIR__ . '/google-stt.json');
-define('GEMINI_API_URL', 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent');
+// הוספה: הגדרה חסרה להעתקה מוצלחת
+define('RESPONSE_ON_COPY_SUCCESS', 'id_list_message=t-הקובץ הועתק בהצלחה');
 
-// --- [שדרוג 3] - הגדרות תגובה ---
-
-// [חדש] תגובות לתהליך ה-AI
-define('RESPONSE_ON_AI_QUARANTINE', 'id_list_message=t-הקובץ זוהה כבעייתי והועבר לבידוד');
-define('RESPONSE_ON_AI_MANUAL', 'id_list_message=t-הקובץ הועבר לבדיקה ידנית');
-define('RESPONSE_ON_AI_ERROR', 'id_list_message=t-שגיאת AI. הקובץ הועבר לבדיקה ידנית');
-define('RESPONSE_ON_DOWNLOAD_FAIL', 'id_list_message=t-שגיאה בהורדת הקובץ. הועבר לבדיקה ידנית');
-
-// תגובות למחיקה ידנית (משלוחה 8000)
 define('RESPONSE_ON_DELETE_SUCCESS', 'id_list_message=t-הקובץ נמחק בהצלחה');
-define('RESPONSE_ON_DELETE_PARTIAL_ERROR', 'id_list_message=t-שגיאה במחיקת הקובץ המקורי');
+
+// הגדרות תגובה למקרים פחות נפוצים (אבל תקינים)
+define('RESPONSE_ON_DELETE_PARTIAL_ERROR', 'id_list_message=t-שגיאה במציאת הקובץ המקורי');
 define('RESPONSE_ON_DELETE_NO_SOURCE', 'id_list_message=t-הקובץ בשלוחת המקור לא נמצא');
+
+// --- סוף תצורה ---
 
 
 // --- פונקציות עזר למסד נתונים (JSON) ---
 
+/**
+ * טוען את מיפוי הקבצים מהקובץ
+ * @return array
+ */
 function load_mappings() {
-    if (!file_exists(DB_FILE)) return [];
+    if (!file_exists(DB_FILE)) {
+        return [];
+    }
     $data = file_get_contents(DB_FILE);
     return json_decode($data, true) ?: [];
 }
 
+/**
+ * שומר את מיפוי הקבצים לקובץ
+ * @param array $mappings
+ */
 function save_mappings($mappings) {
     file_put_contents(DB_FILE, json_encode($mappings, JSON_PRETTY_PRINT));
 }
 
+/**
+ * מוסיף מיפוי חדש (יעד -> מקור)
+ * @param array &$mappings
+ * @param string $dest_path
+ * @param string $source_path
+ */
 function add_mapping(&$mappings, $dest_path, $source_path) {
     $mappings[$dest_path] = $source_path;
 }
 
+/**
+ * מוצא את נתיב המקור לפי נתיב היעד
+ * @param array $mappings
+ * @param string $dest_path
+ * @return string|null
+ */
 function find_source($mappings, $dest_path) {
-    return $mappings[$dest_path] ?? null;
+    return isset($mappings[$dest_path]) ? $mappings[$dest_path] : null;
 }
 
+/**
+ * מסיר מיפוי
+ * @param array &$mappings
+ * @param string $dest_path
+ */
 function remove_mapping(&$mappings, $dest_path) {
     if (isset($mappings[$dest_path])) {
         unset($mappings[$dest_path]);
     }
 }
 
+// --- [חדש] פונקציית עזר לבדיקת שלוחות מקור ---
+/**
+ * בודק אם הנתיב שייך לאחת משלוחות המקור המוגדרות
+ * @param string $path
+ * @return bool
+ */
 function is_source_extension($path) {
-    if (!is_array(SOURCE_EXTENSIONS)) return false;
+    // ודא ש-SOURCE_EXTENSIONS מוגדר כמערך
+    if (!is_array(SOURCE_EXTENSIONS)) {
+        return false;
+    }
+    
     foreach (SOURCE_EXTENSIONS as $ext) {
+        // ודא שהערך אינו ריק
         if (!empty($ext) && strpos($path, 'ivr2:/' . $ext . '/') === 0) {
             return true;
         }
@@ -92,13 +118,19 @@ function is_source_extension($path) {
     return false;
 }
 
-// --- פונקציות עזר ל-API ---
+
+// --- פונקציית עזר לביצוע קריאת API למפתחים ---
 
 /**
- * מבצע קריאת API של ימות המשיח (JSON)
+ * מבצע קריאת API של ימות המשיח (למפתחים)
+ * @param string $method (לדוגמה 'FileAction')
+ * @param array $params
+ * @return array|null
  */
 function call_yemot_api($method, $params) {
     $url = YEMOT_API_URL . $method;
+    
+    // הוסף את הטוקן לפרמטרים
     $params['token'] = YEMOT_TOKEN;
     
     $options = [
@@ -110,226 +142,103 @@ function call_yemot_api($method, $params) {
         ],
     ];
     $context  = stream_context_create($options);
-    $result = @file_get_contents($url, false, $context);
+    $result = file_get_contents($url, false, $context);
     
-    if ($result === FALSE) return null;
+    if ($result === FALSE) {
+        return null; // שגיאת רשת
+    }
+    
     return json_decode($result, true);
 }
 
-/**
- * [חדש] מוריד קובץ שמע משרת ימות המשיח
- */
-function download_yemot_file($yemot_file_path, $local_save_path) {
-    $url = YEMOT_API_URL . 'DownloadFile';
-    $params = [
-        'token' => YEMOT_TOKEN,
-        'path' => $yemot_file_path
-    ];
-    
-    $full_url = $url . '?' . http_build_query($params);
-    $audio_content = @file_get_contents($full_url);
-    
-    if ($audio_content !== FALSE && strlen($audio_content) > 100) { 
-        return (file_put_contents($local_save_path, $audio_content) !== FALSE);
-    }
-    return false;
-}
-
-/**
- * [חדש] מתמלל קובץ שמע מקומי לטקסט
- * דורש התקנת 'composer require google/cloud-speech'
- * וקובץ JSON של חשבון שירות
- */
-function transcribe_audio_file($local_file_path) {
-    try {
-        $speechClient = new SpeechClient([
-            'credentials' => GOOGLE_STT_CREDENTIALS
-        ]);
-
-        $audio_content = file_get_contents($local_file_path);
-
-        $config = (new RecognitionConfig())
-            ->setEncoding(AudioEncoding::LINEAR16) // או AudioEncoding::ENCODING_UNSPECIFIED
-            ->setSampleRateHertz(8000) // ודא שזה קצב הדגימה של ימות המשיח
-            ->setLanguageCode('he-IL'); // עברית
-
-        $audio = (new RecognitionAudio())
-            ->setContent($audio_content);
-
-        $response = $speechClient->recognize($config, $audio);
-        $transcript = '';
-        foreach ($response->getResults() as $result) {
-            $transcript .= $result->getAlternatives()[0]->getTranscript();
-        }
-        $speechClient->close();
-        return $transcript;
-    } catch (ApiException $e) {
-        // שגיאה בתמלול
-        return null;
-    } catch (Exception $e) {
-        // שגיאה כללית (למשל, קובץ JSON לא נמצא)
-        return null;
-    }
-}
-
-/**
- * [חדש] מבצע קריאת API למודל שפה (Gemini) לניתוח טקסט
- * דורש מפתח API של Gemini
- */
-function call_ai_api($transcript) {
-    if (empty($transcript)) {
-        return 'IGNORE'; // אין טקסט, אין מה לנתח
-    }
-    
-    $system_instruction = "אתה מסנן תוכן אוטומטי. נתח את הטקסט שסופק ובדוק אם הוא מכיל תוכן שאינו הולם או אסור. עליך להשיב אך ורק באחת משלוש המילים הבאות: 'DELETE' אם הטקסט מכיל תוכן אסור, 'IGNORE' אם הטקסט תקין לחלוטין, או 'UNCERTAIN' אם אינך בטוח או אם התוכן גבולי. לעולם אל תחזיר דבר מלבד אחת מהמילים הללו.";
-    
-    $payload = [
-        'contents' => [['parts' => [['text' => "האם הטקסט הבא מכיל תוכן אסור? הטקסט: " . $transcript]]]],
-        'systemInstruction' => ['parts' => [['text' => $system_instruction]]],
-        'generationConfig' => [
-            'temperature' => 0.1,
-            'responseMimeType' => "text/plain",
-        ],
-    ];
-
-    $url = GEMINI_API_URL . "?key=" . GEMINI_API_KEY;
-
-    $options = [
-        'http' => [
-            'header'  => "Content-Type: application/json\r\n",
-            'method'  => 'POST',
-            'content' => json_encode($payload),
-            'ignore_errors' => true
-        ],
-    ];
-    $context  = stream_context_create($options);
-    $response = @file_get_contents($url, false, $context);
-
-    if ($response === FALSE) {
-        return 'ERROR'; // שגיאת רשת
-    }
-    
-    $data = json_decode($response, true);
-    $text = trim($data['candidates'][0]['content']['parts'][0]['text'] ?? '');
-    
-    if (in_array($text, ['DELETE', 'IGNORE', 'UNCERTAIN'])) {
-        return $text;
-    }
-    
-    return 'ERROR'; // תשובה לא צפויה
-}
-
-/**
- * [חדש] פונקציית עזר להעתקה ושמירת מיפוי (לבדיקה ידנית)
- */
-function copy_and_map_file($source_path, $dest_path) {
-    $api_params = [
-        'action' => 'copy',
-        'what'   => $source_path,
-        'target' => $dest_path
-    ];
-    $api_response = call_yemot_api('FileAction', $api_params);
-
-    if ($api_response && $api_response['responseStatus'] == 'OK') {
-        $mappings = load_mappings();
-        add_mapping($mappings, $dest_path, $source_path);
-        save_mappings($mappings);
-        return true;
-    }
-    return false;
-}
 
 // --- לוגיקה ראשית - עיבוד הבקשה ---
 
+// קבל את כל הפרמטרים שנשלחו מהשלוחה
 $params = $_REQUEST;
 
+// ודא שהפרמטר 'what' (נתיב הקובץ) קיים
 if (!isset($params['what'])) {
+    // אם אין נתיב קובץ, החזר הודעת שגיאה
     echo "id_list_message=t-שגיאה, לא התקבל נתיב קובץ";
     exit;
 }
 
-$current_file_path = $params['what'];
-$file_name = basename($current_file_path);
-$response_message = "id_list_message=t-פעולה לא זוהתה";
+$current_file_path = $params['what']; // ivr2:/11/001.wav או ivr2:/14/001.wav
+$file_name = basename($current_file_path); // 001.wav
+
+$response_message = "id_list_message=t-פעולה לא זוהתה"; // הודעת ברירת מחדל
 
 try {
-    // --- [לוגיקה חדשה] ---
-    // בדוק אם זו בקשת דיווח (משלוחות המקור)
+    // --- [שונה] ---
+    // בדוק אם זו בקשת העתקה (מכל אחת משלוחות המקור)
     if (is_source_extension($current_file_path)) {
+        // --- לוגיקת העתקה ---
         
         $source_path = $current_file_path;
-        $temp_local_file = TEMP_DIR . '/' . uniqid('audio_') . '_' . $file_name . '.wav';
-        $ai_decision = 'ERROR'; // ברירת מחדל למקרה שההורדה נכשלת
+        $dest_path = 'ivr2:/' . DEST_EXTENSION . '/' . $file_name;
 
-        // 1. הורדת הקובץ לשרת
-        if (download_yemot_file($source_path, $temp_local_file)) {
-            // 2. תמלול וניתוח AI
-            $transcript = transcribe_audio_file($temp_local_file);
-            $ai_decision = call_ai_api($transcript);
+        // 1. בצע העתקה דרך ה-API למפתחים
+        $api_params = [
+            'action' => 'copy',
+            'what'   => $source_path,
+            'target' => $dest_path
+        ];
+        $api_response = call_yemot_api('FileAction', $api_params);
+
+        if ($api_response && $api_response['responseStatus'] == 'OK') {
+            // 2. אם ההעתקה הצליחה, שמור ב-DB
+            $mappings = load_mappings();
+            add_mapping($mappings, $dest_path, $source_path);
+            save_mappings($mappings);
             
-            // מחיקת הקובץ הזמני
-            @unlink($temp_local_file);
+            // --- [שונה] ---
+            $response_message = RESPONSE_ON_COPY_SUCCESS; // השתמש בהגדרה שקבעת למעלה
         } else {
-            // ההורדה נכשלה, AI לא יכול לנתח
-            $ai_decision = 'ERROR'; // יגרום להעברה לבדיקה ידנית
-            $response_message = RESPONSE_ON_DOWNLOAD_FAIL;
+            $error = $api_response ? $api_response['message'] : 'Network Error';
+            // במקרה של שגיאה, תמיד נשמיע הודעה ולא ננווט
+            $response_message = "id_list_message=t-שגיאה בעת העתקת הקובץ: " . $error;
         }
 
-        // 3. קבלת החלטה
-        if ($ai_decision === 'DELETE') {
-            // AI בטוח -> העבר לבידוד (922)
-            $quarantine_path = 'ivr2:/' . DEST_EXTENSION_QUARANTINE . '/' . $file_name;
-            $api_params_copy = [
-                'action' => 'copy', 'what' => $source_path, 'target' => $quarantine_path
-            ];
-            $api_response_copy = call_yemot_api('FileAction', $api_params_copy);
-            
-            if ($api_response_copy && $api_response_copy['responseStatus'] == 'OK') {
-                // העתקה לבידוד הצליחה, מחק את המקור
-                $api_params_delete = ['action' => 'delete', 'what' => $source_path];
-                call_yemot_api('FileAction', $api_params_delete);
-            }
-            $response_message = RESPONSE_ON_AI_QUARANTINE;
-
-        } else {
-            // AI מסופק (UNCERTAIN), תקין (IGNORE) או שגיאה (ERROR)
-            // -> העבר לבדיקה ידנית (8000)
-            $manual_path = 'ivr2:/' . DEST_EXTENSION_MANUAL . '/' . $file_name;
-            if (copy_and_map_file($source_path, $manual_path)) {
-                $response_message = RESPONSE_ON_AI_MANUAL;
-            } else {
-                $response_message = "id_list_message=t-שגיאה בהעתקת קובץ לבדיקה ידנית";
-            }
-        }
     } 
-    // --- [לוגיקה קיימת] ---
-    // בדוק אם זו בקשת מחיקה ידנית (משלוחת היעד 8000)
-    elseif (strpos($current_file_path, 'ivr2:/' . DEST_EXTENSION_MANUAL . '/') === 0) {
+    // בדוק אם זו בקשת מחיקה (משלוחת היעד)
+    elseif (strpos($current_file_path, 'ivr2:/' . DEST_EXTENSION . '/') === 0) {
+        // --- לוגיקת מחיקה כפולה ---
         
         $dest_path = $current_file_path;
+        
+        // 1. טען את ה-DB ומצא את קובץ המקור
         $mappings = load_mappings();
         $source_path = find_source($mappings, $dest_path);
 
-        // 1. מחק את קובץ היעד (מ-8000)
-        $api_params_dest = ['action' => 'delete', 'what' => $dest_path];
+        // 2. מחק את קובץ היעד
+        $api_params_dest = [
+            'action' => 'delete',
+            'what'   => $dest_path
+        ];
         $api_response_dest = call_yemot_api('FileAction', $api_params_dest);
         
         $deleted_source = false;
         
-        // 2. אם המקור נמצא, מחק גם אותו
+        // 3. אם המקור נמצא, מחק גם אותו
         if ($source_path) {
-            $api_params_source = ['action' => 'delete', 'what' => $source_path];
+            $api_params_source = [
+                'action' => 'delete',
+                'what'   => $source_path
+            ];
             $api_response_source = call_yemot_api('FileAction', $api_params_source);
             if ($api_response_source && $api_response_source['responseStatus'] == 'OK') {
                 $deleted_source = true;
             }
         }
 
-        // 3. עדכן DB והחזר תשובה
+        // 4. עדכן DB והחזר תשובה
         if ($api_response_dest && $api_response_dest['responseStatus'] == 'OK') {
             remove_mapping($mappings, $dest_path); // הסר מהמיפוי
             save_mappings($mappings);
             
+            // --- [שונה] ---
+            // בחר את התגובה המתאימה לפי ההגדרות שקבעת למעלה
             if ($deleted_source) {
                 $response_message = RESPONSE_ON_DELETE_SUCCESS;
             } else if ($source_path) {
@@ -339,6 +248,7 @@ try {
             }
         } else {
              $error = $api_response_dest ? $api_response_dest['message'] : 'Network Error';
+             // במקרה של שגיאה, תמיד נשמיע הודעה ולא ננווט
              $response_message = "id_list_message=t-שגיאה בעת מחיקת קובץ היעד: " . $error;
         }
     }
