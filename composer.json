@@ -1,6 +1,0 @@
-{
-  "require": {
-    "google/cloud-speech": "^1.32",
-    "google/apiclient": "^2.15"
-  }
-}
