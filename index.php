@@ -152,7 +152,7 @@ try {
                     
                     // 2. שלח תשובה מיידית למשתמש
                     // --- שינוי: הוספת מעבר לשלוחה ---
-                    $response_message = "id_list_message=t-דיווח חמור התקבל ויטופל בדקה הקרובה&go_to_folder=/800/60";
+                    $response_message = "id_list_message=t-&go_to_folder=/800/60";
                     echo $response_message;
 
                     // 3. [חדש] קביעת כותרות לניתוק
