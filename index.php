@@ -117,8 +117,9 @@ try {
     switch ($action) {
         case 'ask_report_type':
             if (empty($report_type)) {
-                // [תיקון 1 + 2] שימוש בקובץ 050, וביטול בקשת האישור (פרמטר 15)
-                $response_message = "read=f-050=report_type,no,1,1,7,Digits,yes,yes,,1.2,,,,no";
+                // [תיקון 2] סידור מחדש של כל הפרמטרים בפקודת ה-read לפי התיעוד.
+                // הפרמטר ה-15 (no) הוא זה שמבטל "לאישור הקש 1"
+                $response_message = "read=f-050=report_type,no,,1,1,7,Digits,yes,yes,,1.2,,,no";
             
             } else {
                 $file_name = basename($what);
@@ -141,15 +142,30 @@ try {
                     }
 
                 } elseif ($report_type == '1') {
-                    // --- [תיקון 3] דיווח חמור (מושהה) ---
+                    // --- [תיקון 1 + 3] דיווח חמור (מושהה עם ניתוק מיידי) ---
                     $dest_path_a = 'ivr2:/' . DEST_URGENT_A . '/' . $file_name;
                     $dest_path_b = 'ivr2:/' . DEST_URGENT_B . '/' . $file_name;
 
-                    // 1. שלח תשובה מיידית למשתמש
-                    $response_message = "id_list_message=t-דיווח חמור התקבל ויטופל בדקה הקרובה";
+                    // 1. [חדש] התחלת הניתוק המיידי
+                    ob_start();
                     
-                    // 2. רשום את הפעולה הכבדה לביצוע אחרי שהשיחה תסתיים
+                    // 2. שלח תשובה מיידית למשתמש
+                    $response_message = "id_list_message=t-דיווח חמור התקבל ויטופל בדקה הקרובה";
+                    echo $response_message;
+
+                    // 3. [חדש] קביעת כותרות לניתוק
+                    header('Connection: close');
+                    header('Content-Length: ' . ob_get_length());
+                    ob_end_flush(); // שולח את כל מה שב-buffer (את ההודעה)
+                    flush(); // מוודא שהכל נשלח ל-client (ימות המשיח)
+
+                    
+                    // 4. רשום את הפעולה הכבדה לביצוע אחרי שהשיחה תסתיים
+                    // ימות המשיח כבר קיבל את התשובה וניתק את המשתמש
                     register_shutdown_function('handle_urgent_report', $source_path, $dest_path_a, $dest_path_b);
+
+                    // 5. [חדש] מנע מהסקריפט הראשי לשלוח עוד 'echo' בסוף
+                    $response_message = null;
                 }
             }
             break;
@@ -207,7 +223,10 @@ try {
 }
 
 // שלח את התשובה הסופית למשתמש
-echo $response_message;
+// [תיקון] רק אם לא שלחנו כבר תשובה (כמו במקרה של דיווח חמור)
+if ($response_message !== null) {
+    echo $response_message;
+}
 
 // כאן הסקריפט הראשי מסתיים.
 // אם נרשמה פונקציית כיבוי, היא תתחיל לרוץ עכשיו.
