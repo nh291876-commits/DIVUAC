@@ -14,6 +14,11 @@ define('DEST_REGULAR', '8000');
 define('DEST_URGENT_A', '88'); // שלוחת טיפול
 define('DEST_URGENT_B', '85'); // שלוחת תיעוד (ודא שהיא קיימת!)
 
+// [חדש] הגדרות צינתוק
+define('TZINTUK_LIST_NAME', '8999');
+define('TZINTUK_CALLER_ID', '0733181406');
+
+
 define('DB_FILE', 'file_mappings.json');
 
 // --- פונקציות עזר ---
@@ -88,8 +93,15 @@ function handle_urgent_report($source_path, $dest_path_a, $dest_path_b) {
         add_mapping($mappings, $dest_path_a, $source_path);
         save_mappings($mappings);
         
-        // אין צורך לשלוח תשובה למשתמש, הוא כבר מזמן ניתק.
-        // ניתן להוסיף כאן לוג צד שרת אם רוצים.
+        // --- [תוספת צינתוק] ---
+        // 5. שליחת צינתוק למנהלים
+        $tzintuk_params = [
+            'listName' => TZINTUK_LIST_NAME,
+            'callerId' => TZINTUK_CALLER_ID
+        ];
+        call_yemot_api('RunTzintuk', $tzintuk_params);
+        // --- [סוף תוספת] ---
+
     } else {
         // אם ההעתקה הראשית ל-88 נכשלה, שום דבר לא קורה
         // והקובץ נשאר במקור.
