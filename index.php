@@ -119,7 +119,7 @@ try {
             if (empty($report_type)) {
                 // [תיקון 2] סידור מחדש של כל הפרמטרים בפקודת ה-read לפי התיעוד.
                 // הפרמטר ה-15 (no) הוא זה שמבטל "לאישור הקש 1"
-                $response_message = "read=f-050=report_type,no,,1,1,7,Digits,yes,yes,,1.2,,,no";
+                $response_message = "read=f-050=report_type,no,1,1,7,No,yes,no,,1.2,,,,,no";
             
             } else {
                 $file_name = basename($what);
