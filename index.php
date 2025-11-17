@@ -227,7 +227,7 @@ try {
 // שלח את התשובה הסופית למשתמש
 // [תיקון] רק אם לא שלחנו כבר תשובה (כמו במקרה של דיווח חמור)
 if ($response_message !== null) {
-    echo $response_message;
+    echo $response_message;
 }
 
 // כאן הסקריפט הראשי מסתיים.
