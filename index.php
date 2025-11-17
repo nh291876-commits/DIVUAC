@@ -14,12 +14,12 @@ define('DEST_REGULAR', '8000');
 define('DEST_URGENT_A', '88'); // שלוחת טיפול
 define('DEST_URGENT_B', '85'); // שלוחת תיעוד (ודא שהיא קיימת!)
 
-// [חדש] הגדרות צינתוק
-define('TZINTUK_LIST_NAME', '8999');
+// הגדרות צינתוק
+define('TZINTUK_LIST_NAME', '2020');
 define('TZINTUK_CALLER_ID', '0733181406');
 
-
 define('DB_FILE', 'file_mappings.json');
+define('DEBUG_LOG_FILE', 'debug_tzintuk_log.txt'); // [חדש] קובץ לוג לצינתוק
 
 // --- פונקציות עזר ---
 
@@ -63,7 +63,7 @@ function call_yemot_api($method, $params) {
 }
 
 
-// --- [חדש] פונקציה לפעולה מושהית ---
+// --- פונקציה לפעולה מושהית ---
 /**
  * פונקציה זו תתבצע "מאחורי הקלעים" אחרי שהמשתמש כבר קיבל תשובה וניתק.
  * היא ממתינה 60 שניות ואז מבצעת את ההעברות.
@@ -72,7 +72,7 @@ function handle_urgent_report($source_path, $dest_path_a, $dest_path_b) {
     // התעלם מניתוק המשתמש והמשך לרוץ
     ignore_user_abort(true);
     
-    // המתנה של 60 שניות
+    // [שוחזר] המתנה של 60 שניות (כפי שרצית)
     sleep(60);
 
     // 1. העתקה ל-88 (החשוב ביותר)
@@ -88,24 +88,31 @@ function handle_urgent_report($source_path, $dest_path_a, $dest_path_b) {
         call_yemot_api('FileAction', ['action' => 'delete', 'what' => $source_path]);
 
         // 4. שמירת מיפוי לשחזור (לפי 88)
-        // חשוב: טוענים מחדש את הקובץ למניעת התנגשויות
         $mappings = load_mappings();
         add_mapping($mappings, $dest_path_a, $source_path);
         save_mappings($mappings);
         
-        // --- [תוספת צינתוק] ---
+        // --- [תוספת צינתוק עם לוג] ---
         // 5. שליחת צינתוק למנהלים
         $tzintuk_params = [
             'listName' => TZINTUK_LIST_NAME,
             'callerId' => TZINTUK_CALLER_ID
         ];
-        call_yemot_api('RunTzintuk', $tzintuk_params);
+        $tzintuk_response = call_yemot_api('RunTzintuk', $tzintuk_params);
+
+        // [חדש] כתיבת התגובה של ימות ללוג
+        $log_entry = "Time: " . date('Y-m-d H:i:s') . "\n";
+        $log_entry .= "Params Sent: " . json_encode($tzintuk_params) . "\n";
+        $log_entry .= "Response Received: " . json_encode($tzintuk_response) . "\n\n";
+        file_put_contents(DEBUG_LOG_FILE, $log_entry, FILE_APPEND);
         // --- [סוף תוספת] ---
 
     } else {
-        // אם ההעתקה הראשית ל-88 נכשלה, שום דבר לא קורה
-        // והקובץ נשאר במקור.
-        // ניתן לרשום לוג שגיאה כאן.
+        // ... (רישום שגיאה אם ההעתקה ל-88 נכשלה) ...
+        $log_entry = "Time: " . date('Y-m-d H:i:s') . "\n";
+        $log_entry .= "ERROR: Copy to 88 failed. Tzintuk not sent.\n";
+        $log_entry .= "Response Received: " . json_encode($api_response_move_copy) . "\n\n";
+        file_put_contents(DEBUG_LOG_FILE, $log_entry, FILE_APPEND);
     }
 }
 
@@ -129,8 +136,7 @@ try {
     switch ($action) {
         case 'ask_report_type':
             if (empty($report_type)) {
-                // [תיקון 2] סידור מחדש של כל הפרמטרים בפקודת ה-read לפי התיעוד.
-                // הפרמטר ה-15 (no) הוא זה שמבטל "לאישור הקש 1"
+                // שימוש בקובץ 050, ללא אישור
                 $response_message = "read=f-050=report_type,no,1,1,7,No,yes,no,,1.2,,,,,no";
             
             } else {
@@ -154,18 +160,18 @@ try {
                     }
 
                 } elseif ($report_type == '1') {
-                    // --- [תיקון 1 + 3] דיווח חמור (מושהה עם ניתוק מיידי) ---
+                    // --- דיווח חמור (מושהה עם ניתוק מיידי) ---
                     $dest_path_a = 'ivr2:/' . DEST_URGENT_A . '/' . $file_name;
                     $dest_path_b = 'ivr2:/' . DEST_URGENT_B . '/' . $file_name;
 
-                    // 1. [חדש] התחלת הניתוק המיידי
+                    // 1. התחלת הניתוק המיידי
                     ob_start();
                     
                     // 2. שלח תשובה מיידית למשתמש
                     $response_message = "id_list_message=t-דיווח חמור התקבל ויטופל בדקה הקרובה";
                     echo $response_message;
 
-                    // 3. [חדש] קביעת כותרות לניתוק
+                    // 3. קביעת כותרות לניתוק
                     header('Connection: close');
                     header('Content-Length: ' . ob_get_length());
                     ob_end_flush(); // שולח את כל מה שב-buffer (את ההודעה)
@@ -173,10 +179,9 @@ try {
 
                     
                     // 4. רשום את הפעולה הכבדה לביצוע אחרי שהשיחה תסתיים
-                    // ימות המשיח כבר קיבל את התשובה וניתק את המשתמש
                     register_shutdown_function('handle_urgent_report', $source_path, $dest_path_a, $dest_path_b);
 
-                    // 5. [חדש] מנע מהסקריפט הראשי לשלוח עוד 'echo' בסוף
+                    // 5. מנע מהסקריפט הראשי לשלוח עוד 'echo' בסוף
                     $response_message = null;
                 }
             }
@@ -235,7 +240,6 @@ try {
 }
 
 // שלח את התשובה הסופית למשתמש
-// [תיקון] רק אם לא שלחנו כבר תשובה (כמו במקרה של דיווח חמור)
 if ($response_message !== null) {
     echo $response_message;
 }
