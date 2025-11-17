@@ -3,7 +3,7 @@
 // --- תצורה ראשית - יש לערוך ---
 
 // הגדר את הטוקן שלך (מספר מערכת:סיסמה)
-define('YEMOT_TOKEN', '0733181406:80809090'); // ודא שהסיסמה נכונה!
+define('YEMOT_TOKEN', '0733181406:80809090'); 
 
 // הגדר את כתובת ה-API למפתחים
 define('YEMOT_API_URL', 'https://www.call2all.co.il/ym/api/');
@@ -11,8 +11,8 @@ define('YEMOT_API_URL', 'https://www.call2all.co.il/ym/api/');
 // הגדרות שלוחות
 define('SOURCE_EXTENSIONS', ['11', '90', '97', '94', '988', '9999']);
 define('DEST_REGULAR', '8000');
-define('DEST_URGENT_A', '88'); // ודא ששלוחה זו קיימת!
-define('DEST_URGENT_B', '85'); // ודא ששלוחה זו קיימת!
+define('DEST_URGENT_A', '88'); // שלוחת טיפול
+define('DEST_URGENT_B', '85'); // שלוחת תיעוד (ודא שהיא קיימת!)
 
 define('DB_FILE', 'file_mappings.json');
 
@@ -57,6 +57,47 @@ function call_yemot_api($method, $params) {
     return json_decode($result, true);
 }
 
+
+// --- [חדש] פונקציה לפעולה מושהית ---
+/**
+ * פונקציה זו תתבצע "מאחורי הקלעים" אחרי שהמשתמש כבר קיבל תשובה וניתק.
+ * היא ממתינה 60 שניות ואז מבצעת את ההעברות.
+ */
+function handle_urgent_report($source_path, $dest_path_a, $dest_path_b) {
+    // התעלם מניתוק המשתמש והמשך לרוץ
+    ignore_user_abort(true);
+    
+    // המתנה של 60 שניות
+    sleep(60);
+
+    // 1. העתקה ל-88 (החשוב ביותר)
+    $api_params_move_copy = ['action' => 'copy', 'what' => $source_path, 'target' => $dest_path_a];
+    $api_response_move_copy = call_yemot_api('FileAction', $api_params_move_copy);
+
+    if ($api_response_move_copy && $api_response_move_copy['responseStatus'] == 'OK') {
+        
+        // 2. העתקה ל-85 (תיעוד)
+        call_yemot_api('FileAction', ['action' => 'copy', 'what' => $source_path, 'target' => $dest_path_b]);
+
+        // 3. מחיקת המקור (רק אחרי שהעתקנו לשני היעדים)
+        call_yemot_api('FileAction', ['action' => 'delete', 'what' => $source_path]);
+
+        // 4. שמירת מיפוי לשחזור (לפי 88)
+        // חשוב: טוענים מחדש את הקובץ למניעת התנגשויות
+        $mappings = load_mappings();
+        add_mapping($mappings, $dest_path_a, $source_path);
+        save_mappings($mappings);
+        
+        // אין צורך לשלוח תשובה למשתמש, הוא כבר מזמן ניתק.
+        // ניתן להוסיף כאן לוג צד שרת אם רוצים.
+    } else {
+        // אם ההעתקה הראשית ל-88 נכשלה, שום דבר לא קורה
+        // והקובץ נשאר במקור.
+        // ניתן לרשום לוג שגיאה כאן.
+    }
+}
+
+
 // --- לוגיקה ראשית ---
 
 header('Content-Type: text/html; charset=utf-8');
@@ -76,14 +117,15 @@ try {
     switch ($action) {
         case 'ask_report_type':
             if (empty($report_type)) {
-                // תיקון קריטי: סימן שווה אחרי הטקסט
-                $response_message = "read=t-אם זה דיווח חמור הקש 1 ואם דיווח רגיל הקש 2=report_type,no,,1,1,Digits,yes,yes,*/,1.2";
+                // [תיקון 1 + 2] שימוש בקובץ 050, וביטול בקשת האישור (פרמטר 15)
+                $response_message = "read=f-050=report_type,no,1,1,7,Digits,yes,yes,,1.2,,,,no";
+            
             } else {
                 $file_name = basename($what);
                 $source_path = $what;
 
                 if ($report_type == '2') {
-                    // דיווח רגיל
+                    // --- דיווח רגיל (מיידי) ---
                     $dest_path = 'ivr2:/' . DEST_REGULAR . '/' . $file_name;
                     $api_params = ['action' => 'copy', 'what' => $source_path, 'target' => $dest_path];
                     $api_response = call_yemot_api('FileAction', $api_params);
@@ -99,33 +141,15 @@ try {
                     }
 
                 } elseif ($report_type == '1') {
-                    // דיווח חמור
+                    // --- [תיקון 3] דיווח חמור (מושהה) ---
                     $dest_path_a = 'ivr2:/' . DEST_URGENT_A . '/' . $file_name;
                     $dest_path_b = 'ivr2:/' . DEST_URGENT_B . '/' . $file_name;
 
-                    // נסיון העתקה לשלוחה 88
-                    $api_params_move_copy = ['action' => 'copy', 'what' => $source_path, 'target' => $dest_path_a];
-                    $api_response_move_copy = call_yemot_api('FileAction', $api_params_move_copy);
-
-                    if ($api_response_move_copy && $api_response_move_copy['responseStatus'] == 'OK') {
-                        // העתקה הצליחה -> מוחקים את המקור
-                        $api_params_move_delete = ['action' => 'delete', 'what' => $source_path];
-                        call_yemot_api('FileAction', $api_params_move_delete);
-
-                        // מעתיקים לתיעוד (85)
-                        $api_params_log = ['action' => 'copy', 'what' => $source_path, 'target' => $dest_path_b];
-                        call_yemot_api('FileAction', $api_params_log);
-
-                        $mappings = load_mappings();
-                        add_mapping($mappings, $dest_path_a, $source_path);
-                        save_mappings($mappings);
-                        
-                        $response_message = "id_list_message=t-דיווח חמור טופל והקובץ הוסר";
-                    } else {
-                        // כאן אנחנו תופסים את השגיאה!
-                        $err = $api_response_move_copy['message'] ?? 'לא ידוע';
-                        $response_message = "id_list_message=t-שגיאה בהעברה לשלוחה 88: " . $err;
-                    }
+                    // 1. שלח תשובה מיידית למשתמש
+                    $response_message = "id_list_message=t-דיווח חמור התקבל ויטופל בדקה הקרובה";
+                    
+                    // 2. רשום את הפעולה הכבדה לביצוע אחרי שהשיחה תסתיים
+                    register_shutdown_function('handle_urgent_report', $source_path, $dest_path_a, $dest_path_b);
                 }
             }
             break;
@@ -182,5 +206,9 @@ try {
     $response_message = "id_list_message=t-שגיאת שרת קריטית";
 }
 
+// שלח את התשובה הסופית למשתמש
 echo $response_message;
+
+// כאן הסקריפט הראשי מסתיים.
+// אם נרשמה פונקציית כיבוי, היא תתחיל לרוץ עכשיו.
 ?>
