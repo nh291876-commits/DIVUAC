@@ -136,7 +136,7 @@ try {
                         add_mapping($mappings, $dest_path, $source_path);
                         save_mappings($mappings);
                         // --- שינוי: הוספת מעבר לשלוחה ---
-                        $response_message = "id_list_message=t-הדיווח הרגיל התקבל.go_to_folder=/800/61";
+                        $response_message = "id_list_message=t-הדיווח הרגיל התקבל&go_to_folder=/800/61";
                     } else {
                         $err = $api_response['message'] ?? 'שגיאת תקשורת';
                         $response_message = "id_list_message=t-שגיאה בהעתקה: " . $err;
@@ -152,7 +152,7 @@ try {
                     
                     // 2. שלח תשובה מיידית למשתמש
                     // --- שינוי: הוספת מעבר לשלוחה ---
-                    $response_message = "id_list_message=t-דיווח חמור התקבל ויטופל בדקה הקרובה.go_to_folder=/800/60";
+                    $response_message = "id_list_message=t-דיווח חמור התקבל ויטופל בדקה הקרובה&go_to_folder=/800/60";
                     echo $response_message;
 
                     // 3. [חדש] קביעת כותרות לניתוק
