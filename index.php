@@ -3,7 +3,7 @@
 // --- תצורה ראשית - יש לערוך ---
 
 // הגדר את הטוקן שלך (מספר מערכת:סיסמה)
-define('YEMOT_TOKEN', '0733181406:80809090'); 
+define('YEMOT_TOKEN', '0733181406:80809090');
 
 // הגדר את כתובת ה-API למפתחים
 define('YEMOT_API_URL', 'https://www.call2all.co.il/ym/api/');
