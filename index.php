@@ -80,9 +80,20 @@ function handle_urgent_report($source_path, $dest_path_a, $dest_path_b) {
 }
 
 // --- [חדש] פונקציה לפעולה מושהית (שחזור) ---
-function handle_restore($dest_path_a, $source_path) {
+function handle_restore($dest_path_a) { // מקבלת רק את הנתיב לשחזור
     ignore_user_abort(true);
     
+    // --- לוגיקה שהועברה מה-CASE ---
+    $mappings = load_mappings(); // קורא את הקובץ ברקע
+    $source_path = find_source($mappings, $dest_path_a); // מחפש ברקע
+    
+    if (!$source_path) {
+        // אין למי להחזיר תשובה, אבל אפשר לרשום לוג שגיאה בצד השרת
+        // error_log("Restore failed: source not found for $dest_path_a");
+        return; // הפסקת הפונקציה
+    }
+    // --- סוף הלוגיקה שהועברה ---
+
     // 1. מחיקת הקובץ מהמקור (לפנות מקום)
     call_yemot_api('FileAction', ['action' => 'delete', 'what' => $source_path]);
 
@@ -94,7 +105,7 @@ function handle_restore($dest_path_a, $source_path) {
         // 3. מחיקה משלוחת הטיפול (88)
         call_yemot_api('FileAction', ['action' => 'delete', 'what' => $dest_path_a]);
         
-        // 4. עדכון המיפוי
+        // 4. עדכון המיפוי (טוען מחדש למניעת התנגשות)
         $mappings = load_mappings();
         remove_mapping($mappings, $dest_path_a);
         save_mappings($mappings);
@@ -187,18 +198,16 @@ try {
             break;
 
         case 'restore_urgent': // שחזור מ-88
-            $dest_path_a = $what;
-            $mappings = load_mappings();
-            $source_path = find_source($mappings, $dest_path_a);
-
-            if (!$source_path) {
-                $response_message = "id_list_message=t-מקור לא נמצא";
-                break;
-            }
+            $dest_path_a = $what; // פעולה מהירה
+            
+            // כל הלוגיקה של קריאת הקובץ וחיפוש המקור הועברה לפונקציית הרקע
+            // $mappings = load_mappings();
+            // $source_path = find_source($mappings, $dest_path_a);
+            // if (!$source_path) { ... }
 
             // --- תיקון: שימוש ב-Shutdown Function ---
             
-            // 1. שלח תשובה מיידית
+            // 1. שלח תשובה מיידית (תשובה אופטימית)
             ob_start();
             $response_message = "id_list_message=t-הקובץ שוחזר בהצלחה";
             echo $response_message;
@@ -210,7 +219,7 @@ try {
             flush();
 
             // 3. בצע את העבודה הכבדה ברקע
-            register_shutdown_function('handle_restore', $dest_path_a, $source_path);
+            register_shutdown_function('handle_restore', $dest_path_a); // מעביר רק את מה שצריך
 
             // 4. מנע הדפסה כפולה
             $response_message = null;
