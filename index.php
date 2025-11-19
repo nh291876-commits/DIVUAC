@@ -6,7 +6,7 @@ define('YEMOT_API_URL', 'https://www.call2all.co.il/ym/api/');
 
 define('DEST_REGULAR', '8000');
 define('DEST_URGENT_A', '88');
-// שלוחה 85 הוסרה לבקשתך
+// שלוחה 85 הוסרה
 
 define('DB_FILE', 'file_mappings.json');
 
@@ -51,9 +51,8 @@ function call_yemot_api($method, $params) {
     return json_decode($result, true);
 }
 
-// --- פונקציות רקע מהירות ---
+// --- פונקציות רקע ---
 
-// [שינוי] הפונקציה מקבלת כעת רק יעד אחד (88)
 function handle_urgent_report($source_path, $dest_path_a) {
     ignore_user_abort(true);
     sleep(60); 
@@ -63,7 +62,6 @@ function handle_urgent_report($source_path, $dest_path_a) {
     $api_response_move_copy = call_yemot_api('FileAction', $api_params_move_copy);
 
     if ($api_response_move_copy && $api_response_move_copy['responseStatus'] == 'OK') {
-        // [בוטל] ההעתקה לשלוחה 85 הוסרה
         
         // 2. מחיקת המקור
         call_yemot_api('FileAction', ['action' => 'delete', 'what' => $source_path]);
@@ -77,15 +75,15 @@ function handle_urgent_report($source_path, $dest_path_a) {
 
 function handle_restore_fast($dest_path_a) {
     ignore_user_abort(true);
-    set_time_limit(0); // למנוע טיים-אאוט של PHP
+    set_time_limit(0);
 
-    // 1. שליפת נתיב המקור (פעולה מקומית מהירה)
+    // 1. שליפת נתיב המקור
     $mappings = load_mappings();
     $source_path = find_source($mappings, $dest_path_a);
     
     if (!$source_path) return;
 
-    // 2. מחיקת המקור (כדי לפנות מקום להעתקה)
+    // 2. מחיקת המקור
     call_yemot_api('FileAction', ['action' => 'delete', 'what' => $source_path]);
 
     // 3. העתקה מהארכיון למקור
@@ -103,6 +101,13 @@ function handle_restore_fast($dest_path_a) {
 
 header('Content-Type: text/html; charset=utf-8');
 $params = $_REQUEST;
+
+// [תוספת ל-Cron Job] בדיקת דופק כדי להשאיר את השרת ער
+if (isset($params['action']) && $params['action'] === 'ping') {
+    echo "OK - I am awake";
+    exit;
+}
+
 $what = $params['what'] ?? null;
 $action = $params['action'] ?? null;
 $report_type = $params['report_type'] ?? null;
@@ -118,7 +123,8 @@ try {
     switch ($action) {
         case 'ask_report_type':
             if (empty($report_type)) {
-                $response_message = "read=t-לדיווח חמור הקישו 1, לדיווח רגיל הקישו 2=report_type,no,1,1,7,No,yes,no,,1.2,,,,,no";
+                // שימוש ב-TTS במקום קובץ 050
+                $response_message = "read=t-אם מדובר בתוכן בעייתי ברמה חמורה ביותר הַקֵּשׁ 1, לדיווח רגיל הַקֵּשׁ 2=report_type,no,1,1,7,No,yes,no,,1.2,,,,,no";
             } else {
                 $file_name = basename($what);
                 $source_path = $what;
@@ -140,7 +146,6 @@ try {
 
                 } elseif ($report_type == '1') {
                     $dest_path_a = 'ivr2:/' . DEST_URGENT_A . '/' . $file_name;
-                    // [בוטל] משתנה שלוחה 85
 
                     ob_start();
                     $response_message = "id_list_message=t-בוצע&go_to_folder=/800/60";
@@ -150,7 +155,6 @@ try {
                     ob_end_flush();
                     flush();
                     
-                    // [שינוי] קריאה לפונקציה עם יעד אחד בלבד
                     register_shutdown_function('handle_urgent_report', $source_path, $dest_path_a);
                     $response_message = null;
                 }
@@ -182,18 +186,15 @@ try {
         case 'restore_urgent': 
             $dest_path_a = $what;
             
-            // 1. שליחת תשובה מיידית למאזין "הקובץ שוחזר" (אופטימי)
             ob_start();
             $response_message = "id_list_message=t-הקובץ שוחזר בהצלחה";
             echo $response_message;
             
-            // ניתוק המאזין
             header('Connection: close');
             header('Content-Length: ' . ob_get_length());
             ob_end_flush();
             flush();
 
-            // 2. ביצוע הפעולה האמיתית ברקע
             register_shutdown_function('handle_restore_fast', $dest_path_a);
 
             $response_message = null;
